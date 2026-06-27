@@ -36,6 +36,11 @@
 -------------------------------------------------------------------------------
   EPUB_WAF_MAX_WAIT_SEC  轮询等待 #searchStr 的最长时间，默认 180
   PLAYWRIGHT_HEADED        设为 1 时使用有界面 Chromium
+  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+                         指定本机 Chrome/Chromium 可执行文件，避免必须下载
+                         Playwright 自带 Chromium，例如 /usr/bin/google-chrome
+  PLAYWRIGHT_CHROMIUM_CHANNEL
+                         指定 Playwright 浏览器 channel，例如 chrome
   EPUB_RESULT_HTML         结果页 HTML 完整路径；不设则 tools/_last_result_YYYYMMDDHHmmss.html
 """
 from __future__ import annotations
@@ -75,6 +80,16 @@ def _max_wait_sec() -> float:
 
 def _headed() -> bool:
     return os.environ.get("PLAYWRIGHT_HEADED", "").strip() in ("1", "true", "yes")
+
+
+def _chromium_executable_path() -> str | None:
+    path = os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH", "").strip()
+    return path or None
+
+
+def _chromium_channel() -> str | None:
+    channel = os.environ.get("PLAYWRIGHT_CHROMIUM_CHANNEL", "").strip()
+    return channel or None
 
 
 def default_result_html_path() -> Path:
@@ -188,13 +203,20 @@ def search_epub_keyword_with_page(
 
 
 def _launch_browser(p: Playwright) -> Browser:
-    return p.chromium.launch(
-        headless=not _headed(),
-        args=[
+    launch_options = {
+        "headless": not _headed(),
+        "args": [
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",
         ],
-    )
+    }
+    executable_path = _chromium_executable_path()
+    channel = _chromium_channel()
+    if executable_path:
+        launch_options["executable_path"] = executable_path
+    elif channel:
+        launch_options["channel"] = channel
+    return p.chromium.launch(**launch_options)
 
 
 def _new_context(browser: Browser) -> BrowserContext:
